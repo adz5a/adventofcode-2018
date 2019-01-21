@@ -42,7 +42,7 @@
       [(+ x left)
        (+ y top)])))
 
-(defn count-overlapping
+(defn get-overlapping-pieces
   "Returns the number of overlapping pieces."
   [claims]
   (let [r (reduce
@@ -56,14 +56,23 @@
                  :overlapping next-overlapping-set}))
             {:board #{} :overlapping #{}}
             claims)]
-    (count (:overlapping r))))
+    (:overlapping r)))
 
-(comment (count-overlapping claims))
+(comment (get-overlapping-pieces claims))
 
 (def data (slurp "src/adventofcode_2018/input.txt"))
 (def real-claims (parse-input-str data))
 
+(let [overlaps (get-overlapping-pieces real-claims)]
+  (filter overlaps (get-pieces (first real-claims))))
+
 (comment
-  (println data)
-  (println real-claims)
-  (println (count-overlapping real-claims)))
+  (let [overlappings (get-overlapping-pieces real-claims)]
+    (loop [claim (first real-claims)
+           claims (next real-claims)]
+      (let [pieces (get-pieces claim)
+            o (filter overlappings pieces)]
+        (if (empty? o)
+          (:id claim)
+          (recur (first claims)
+                 (next claims)))))))
