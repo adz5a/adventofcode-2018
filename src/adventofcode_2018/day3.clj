@@ -46,19 +46,17 @@
   "Returns the number of overlapping pieces."
   [claims]
   (let [r (reduce
-            (fn [{:keys [board nb]} claim]
+            (fn [{:keys [board overlapping]} claim]
               (let [pieces (get-pieces claim)
                     board-size (count board)
-                    nb-pieces (count pieces)
-                    expected-size (+ board-size nb-pieces)
-                    next-board (apply conj board pieces)
-                    overlapping-pieces (- expected-size (count next-board))]
+                    overlapping-pieces (filter board pieces) ;; all pieces already in the board
+                    next-board (apply conj board pieces) ;; the next board, regardless
+                    next-overlapping-set (apply conj overlapping overlapping-pieces)]
                 {:board next-board
-                 :nb (+ nb overlapping-pieces)}))
-            {:board #{}
-             :nb 0}
+                 :overlapping next-overlapping-set}))
+            {:board #{} :overlapping #{}}
             claims)]
-    (:nb r)))
+    (count (:overlapping r))))
 
 (comment (count-overlapping claims))
 
@@ -68,4 +66,4 @@
 (comment
   (println data)
   (println real-claims)
-  (println (count-overlapping (take 10 real-claims))))
+  (println (count-overlapping real-claims)))
