@@ -25,10 +25,11 @@
 
 (def lines (split test-data-string #"\n"))
 
+(comment (pprint lines))
 
-(def action->regex {:shift-start #"\[(\d+)-(\d+)-(\d+) (\d+):(\d+)\] Guard #(\d+) begins shift"
-                    :start-sleeping #"\[(\d+)-(\d+)-(\d+) (\d+):(\d+)\] falls asleep"
-                    :wakes-up #"\[(\d+)-(\d+)-(\d+) (\d+):(\d+)\] wakes up"})
+(def action->regex {:shift-start #"\[(\d+)-0?(\d+)-0?(\d+) 0?(\d+):0?(\d+)\] Guard #(\d+) begins shift"
+                    :start-sleeping #"\[(\d+)-0?(\d+)-0?(\d+) 0?(\d+):0?(\d+)\] falls asleep"
+                    :wakes-up #"\[(\d+)-0?(\d+)-0?(\d+) 0?(\d+):0?(\d+)\] wakes up"})
 
 (defn parse-line [line]
   (reduce #(let [[action re] %2
@@ -59,19 +60,68 @@
         :wakes-up (s/cat :type (partial = :wakes-up)
                             :details (s/spec (s/cat :date ::log-date)))))
 
+(comment (pprint parsed-lines))
+
 (def data (map (comp
                  second
                  (partial s/conform ::log-entry)) parsed-lines))
 
-(defn is-type [t entry]
-  (= t (:type entry)))
+(defn is-type [t log-entry]
+  (= t (:type log-entry)))
 
 ;; We want to be able to define a shift with all its sleeps cycle
 (s/def ::shift
-  (s/cat :start-shift (partial is-type :shift-start)
+  (s/cat :guard (partial is-type :shift-start)
          :sleep-cycles (s/+ (s/cat :sleeps (partial is-type :start-sleeping)
                                    :wakes-up (partial is-type :wakes-up)))))
 (s/def ::timeline
   (s/+ ::shift))
 
 (def timeline (s/conform ::timeline data))
+
+(comment (pprint timeline))
+
+(defn cycle-start [sleep-cycle]
+  (get-in sleep-cycle [:sleeps :details :date :minute]))
+(defn cycle-end [sleep-cycle]
+  (get-in sleep-cycle [:wakes-up :details :date :minute]))
+(defn guard-id [shift]
+  (get-in shift [:guard :details :id]))
+
+(defn sleep-stats [shift]
+  (let [id (guard-id shift)
+        minutes (apply hash-map
+                       (interleave (range 60)
+                                   (range 0 1 0)))
+        sleep-cycles-ranges (map #(range
+                                    (cycle-start %)
+                                    (cycle-end %))
+                                 (:sleep-cycles shift))
+        minutes->sleep-time (reduce
+                              (fn [minutes sleep-range]
+                                (reduce (fn [minutes minute]
+                                          (update minutes minute inc))
+                                        minutes
+                                        sleep-range))
+                              minutes
+                              sleep-cycles-ranges)]
+    {:id id
+     :sleep-map minutes->sleep-time}))
+
+(defn get-most-slept-minute [minutes]
+  (first (sort-by val > minutes)))
+
+(let [id->minutes-slept (into {}
+                              (map (fn [[k v]]
+                                     [k (apply merge-with + (map :sleep-map v))]))
+                              (group-by :id
+                                        (map sleep-stats
+                                             timeline)))]
+  (sort-by
+    #(get-in % [1 :sleep-length])
+    >
+    (map (fn [[id minutes]]
+           [id {:most-slept-minute (get-most-slept-minute minutes)
+                :sleep-length (reduce + (map val minutes))}])
+         id->minutes-slept)))
+
