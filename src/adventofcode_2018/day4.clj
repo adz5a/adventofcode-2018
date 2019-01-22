@@ -111,6 +111,7 @@
 (defn get-most-slept-minute [minutes]
   (first (sort-by val > minutes)))
 
+;; solution for the example
 (let [id->minutes-slept (into {}
                               (map (fn [[k v]]
                                      [k (apply merge-with + (map :sleep-map v))]))
@@ -125,3 +126,15 @@
                 :sleep-length (reduce + (map val minutes))}])
          id->minutes-slept)))
 
+
+;; WIP
+;; this will not work. The data' array needs to be sorted before being
+;; processed as a timeline. This is why it fails right now.
+(let [input (slurp "src/adventofcode_2018/input.txt")
+      lines (split input #"\n")
+      data (map parse-line lines)
+      data' (map (comp
+                 second
+                 (partial s/conform ::log-entry)) data)
+      timeline (s/conform ::timeline data')]
+  (s/explain-str ::timeline data'))
